@@ -47,6 +47,14 @@ def tree_fingerprint(repo):
             with path.open('rb') as stream:
                 for block in iter(lambda: stream.read(1024 * 1024), b''):
                     digest.update(block)
+        elif path.is_dir():
+            # A submodule or nested repository: bind its checked-out commit and,
+            # recursively, its working files, so uncommitted edits inside it count.
+            head = inner = ''
+            if (path / '.git').exists():
+                head = git(path, 'rev-parse', 'HEAD', check=False).stdout.strip()
+                inner = tree_fingerprint(path)
+            digest.update(b'gitlink\0' + head.encode() + b'\0' + inner.encode())
         else:
             raise WorkflowError(f'Unsupported source path: {name}')
         digest.update(b'\0')

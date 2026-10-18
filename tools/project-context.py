@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from project_markdown import links, resolve_target, slugify
+from project_markdown import explicit_ids, headings, links, mask_code_lines, mask_fences, resolve_target
 
 
 def git(cwd: Path, *args: str) -> str:
@@ -26,6 +26,7 @@ def section(lines, start, end=None):
 
 
 def heading_bounds(lines, predicate, level=None):
+    lines = mask_fences(lines)
     result = []
     for i, line in enumerate(lines):
         m = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
@@ -40,6 +41,7 @@ def heading_bounds(lines, predicate, level=None):
 
 
 def portfolio_blocks(lines):
+    lines = mask_fences(lines)
     headings = [(i, len(m.group(1)), m.group(2).strip()) for i, line in enumerate(lines)
                 if (m := re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line))]
     portfolios = [(i, d) for i, d, t in headings if t.lower() == "portfolio"]
@@ -64,29 +66,16 @@ def portfolio_blocks(lines):
 
 def anchor_range(lines, anchor):
     """Return source bounds for an explicit HTML id or generated heading slug."""
-    explicit = re.compile(r'<a\s+[^>]*id=["\']' + re.escape(anchor) + r'["\']', re.I)
-    for i, line in enumerate(lines):
-        if explicit.search(line):
-            for j in range(i + 1, len(lines)):
-                h = re.match(r"^(#{1,6})\s+", lines[j])
-                if h:
-                    depth = len(h.group(1))
-                    return j, next((k for k in range(j + 1, len(lines)) if (m := re.match(r"^(#{1,6})\s+", lines[k])) and len(m.group(1)) <= depth), len(lines))
-    slug_counts = {}
-    for i, line in enumerate(lines):
-        h = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", line)
-        if h:
-            depth, title = len(h.group(1)), h.group(2)
-        elif i + 1 < len(lines) and re.match(r"^\s{0,3}(=+|-+)\s*$", lines[i + 1]):
-            title, depth = line.strip(), (1 if lines[i + 1].strip().startswith("=") else 2)
-        else:
-            continue
-        base = slugify(title); n = slug_counts.get(base, 0); slug_counts[base] = n + 1
-        actual = base if n == 0 else f"{base}-{n}"
-        if actual == anchor:
-            j = i + (2 if i + 1 < len(lines) and re.match(r"^\s{0,3}(=+|-+)\s*$", lines[i + 1]) else 1)
-            return i, next((k for k in range(j, len(lines)) if (m := re.match(r"^(#{1,6})\s+", lines[k])) and len(m.group(1)) <= depth), len(lines))
-    return None
+    found = list(headings(lines))
+    def bounds(k):
+        index, depth, _ = found[k]
+        return index, next((i for i, d, _ in found[k + 1:] if d <= depth), len(lines))
+    for i, line in enumerate(mask_code_lines(lines)):
+        if anchor in explicit_ids(line):
+            # The anchor may sit on its heading line (`## CO1 — Title <a id="co1"></a>`) or above it.
+            k = next((k for k, (index, _, _) in enumerate(found) if index >= i), None)
+            return None if k is None else bounds(k)
+    return next((bounds(k) for k, (_, _, slug) in enumerate(found) if slug == anchor), None)
 
 
 def main() -> int:
@@ -114,15 +103,16 @@ def main() -> int:
             start, end, title = matches[0]
             # Include its project intro, bounded to the nearest preceding project-level heading.
             project = None
+            heading_lines = mask_fences(plan_lines)
             for i in range(start - 1, -1, -1):
-                h = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", plan_lines[i])
+                h = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", heading_lines[i])
                 if h and len(h.group(1)) <= 2:
                     project = (i, len(h.group(1)), h.group(2)); break
             if project:
                 project_depth = project[1]
                 intro_end = start
                 for j in range(project[0] + 1, start):
-                    nested = re.match(r"^(#{1,6})\s+", plan_lines[j])
+                    nested = re.match(r"^(#{1,6})\s+", heading_lines[j])
                     if nested and len(nested.group(1)) > project_depth:
                         intro_end = j; break
                 selected_lines = [f"{i+1}: {plan_lines[i]}" for i in range(project[0], intro_end)]
@@ -170,7 +160,8 @@ def main() -> int:
             porcelain=git(root,"status","--porcelain")
             dirty=bool(porcelain)
         except subprocess.CalledProcessError: dirty=None
-        head=git(root,"rev-parse","--short","HEAD")
+        try: head=git(root,"rev-parse","--short","HEAD")
+        except subprocess.CalledProcessError: head="(no commits)"
         budget=max(0,args.max_lines-3); output=[]; remaining=budget
         for path,label,content in sections:
             rows=content.splitlines()

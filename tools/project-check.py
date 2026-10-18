@@ -28,8 +28,20 @@ def infer_scopes(config, paths):
     return scopes, unknown
 
 
+def check_whitespace(repo, base):
+    """Run `git diff --check` over tracked changes and each nonignored untracked file."""
+    code = subprocess.run(['git', 'diff', '--check', base, '--'], cwd=repo).returncode
+    untracked = git(repo, 'ls-files', '--others', '--exclude-standard', '-z').stdout.split('\0')
+    # A trailing slash marks an untracked nested repository, which has no file content to check.
+    for name in (n for n in untracked if n and not n.endswith('/')):
+        # --no-index exits 1 for a plain difference; higher codes are whitespace errors or failures.
+        if subprocess.run(['git', 'diff', '--no-index', '--check', '--', os.devnull, name], cwd=repo).returncode > 1:
+            code = code or 1
+    return code
+
+
 def command_plan(config, scopes, base, extra=()):
-    commands = [{'name': 'whitespace', 'argv': ['git', 'diff', '--check', base, '--'], 'cwd': '.'}]
+    commands = [{'name': 'whitespace', 'argv': ['python3', 'tools/project-check.py', '--whitespace-only', base], 'cwd': '.'}]
     for scope in config['scopes']:
         if scope['name'] in scopes:
             commands.extend({**command, 'argv': [arg.replace('{base}', base) for arg in command['argv']]}
@@ -98,7 +110,14 @@ def main(argv=None):
     parser.add_argument('--tail-lines', type=int, default=6)
     parser.add_argument('--extra-command', action='append', default=[], help='Additional required command as JSON argv, cwd=repo; no shell')
     parser.add_argument('--json', action='store_true', help='JSON plan (not combined with --run)')
+    parser.add_argument('--whitespace-only', metavar='BASE', help='Only check whitespace in changes from BASE, untracked files included')
     args = parser.parse_args(argv)
+    if args.whitespace_only:
+        try:
+            return check_whitespace(repository(), args.whitespace_only)
+        except WorkflowError as error:
+            print(f'ERROR: {error}', file=sys.stderr)
+            return 1
     if args.json and args.run:
         parser.error('--json is for plans; --run already writes evidence.json')
     if not 0 <= args.tail_lines <= 30:

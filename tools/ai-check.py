@@ -28,6 +28,7 @@ NO_VALUE = '-'
 REQUIRED_DENY = {
     'Bash(git push --force*)', 'Bash(git push * --force*)', 'Bash(git push -f*)', 'Bash(git push * -f*)',
     'Bash(git commit --no-verify*)', 'Bash(git commit * --no-verify*)',
+    'Bash(git commit -n*)', 'Bash(git commit * -n*)',  # -n is short for --no-verify.
 }
 
 

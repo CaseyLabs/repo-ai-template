@@ -66,6 +66,46 @@ class Checkout(unittest.TestCase):
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertNotIn("Unselected detail",result.stdout)
 
+    def test_fenced_comment_does_not_end_milestone_section(self):
+        plan=self.root/"PLAN.md"
+        text=plan.read_text(encoding="utf-8").replace("**Scope:** selected only.\n","**Scope:** selected only.\n```bash\n# run tests\n```\nAcceptance after the fence.\n")
+        plan.write_text(text,encoding="utf-8")
+        result=self.cli(CONTEXT,"MAINT-5","--json")
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn("Acceptance after the fence",result.stdout)
+        self.assertIn("Rollback progress promise",result.stdout)
+
+    def test_heading_slugs_match_github(self):
+        sys.path.insert(0,str(TOOLS))
+        from project_markdown import anchors
+        found=anchors("# No active milestone / handoff\n## A & B\n")
+        self.assertEqual(found,{"no-active-milestone--handoff","a--b"})
+
+    def test_context_anchor_range_numbers_slugs_like_link_checker(self):
+        import importlib.util
+        sys.path.insert(0,str(TOOLS))
+        from project_markdown import anchors
+        spec=importlib.util.spec_from_file_location("project_context",CONTEXT)
+        context=importlib.util.module_from_spec(spec); spec.loader.exec_module(context)
+        text="# A\none\n# A\ntwo\n# A-1\nthree\n```\n# fenced\n```\nSetext\n======\nfour\n"
+        self.assertEqual(anchors(text),{"a","a-1","a-1-1","setext"})
+        lines=text.splitlines()
+        self.assertEqual(context.anchor_range(lines,"a-1-1"),(4,9))
+        self.assertEqual(context.anchor_range(lines,"setext"),(9,len(lines)))
+        self.assertIsNone(context.anchor_range(lines,"fenced"))
+
+    def test_explicit_anchor_on_heading_line_and_quoted_example(self):
+        import importlib.util
+        sys.path.insert(0,str(TOOLS))
+        from project_markdown import anchors
+        spec=importlib.util.spec_from_file_location("project_context",CONTEXT)
+        context=importlib.util.module_from_spec(spec); spec.loader.exec_module(context)
+        text="# Issues\nUse `<a id=\"co2\"></a>` anchors.\n## CO1 — One <a id=\"co1\"></a>\none\n## CO3 — Three\nthree\n"
+        lines=text.splitlines()
+        self.assertEqual(context.anchor_range(lines,"co1"),(2,4))
+        self.assertIsNone(context.anchor_range(lines,"co2"))
+        self.assertNotIn("co2",anchors(text))
+
     def test_missing_plan_and_id_fail(self):
         self.assertNotEqual(self.cli(CONTEXT,"--plan","missing.md").returncode,0)
         self.assertNotEqual(self.cli(CONTEXT,"missing-id").returncode,0)

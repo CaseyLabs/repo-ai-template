@@ -13,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # The commit-message check needs the pushed or PR range.
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -25,3 +27,13 @@ jobs:
         run: python3 .agents/skills/project-next-milestone/tests/paths.py
       - name: Markdown links
         run: python3 tools/check-doc-links.py --all
+      - name: Commit messages
+        # Reruns the commit-msg hook, which a local commit can skip (`git commit -n`).
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # A new branch or a rewritten base has no usable range, so check all of history.
+          range="$HEAD_SHA"
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then range="$BASE..$HEAD_SHA"; fi
+          tools/check-commit-messages.sh "$range"

@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from project_common import WorkflowError, git, repository, resolve_path  # noqa: E402
 import project_config  # noqa: E402
+from project_markdown import mask_fences  # noqa: E402
 
 SKILL = 'project-next-milestone'
 MAIN = 'main'  # Replaced by project.main_branch from tools/project.toml in main().
@@ -101,7 +102,8 @@ def references(text, known):
 def parse_plan(text):
     """Return the roadmap's milestones in plan order, each with its project, status, priority and deps."""
     milestones, project, current = [], None, None
-    for number, line in enumerate(text.splitlines(), 1):
+    # Fenced code (for example a shell `# comment`) is never a heading or a status line.
+    for number, line in enumerate(mask_fences(text.splitlines()), 1):
         heading = HEADING_RE.match(line)
         if heading:
             level, ident, title = heading.groups()
@@ -457,7 +459,12 @@ def land_milestone(root, run_dir, plan, ident, branch):
         name = next(m['title'] for m in parse_plan(plan.read_text()) if m['id'] == ident)
         title = f'feat: {name} ({ident})'
     body = run_dir / f'body-{ident}.txt'
-    body.write_text((git(root, 'log', '-1', '--format=%b').stdout.strip() or f'Milestone {ident}.') + '\n')
+    # The squash replaces every branch commit, so keep each one's message, oldest first.
+    log_text = git(root, 'log', '--reverse', '--format=%s%x01%b%x00', f'{MAIN}..HEAD').stdout
+    commits = [c.strip().split('\x01', 1) for c in log_text.split('\0') if c.strip()]
+    text = (commits[0][1].strip() if len(commits) == 1
+            else '\n\n'.join(f'{subject}\n\n{body.strip()}'.strip() for subject, body in commits))
+    body.write_text((text or f'Milestone {ident}.') + '\n')
     proc = subprocess.run([str(root / 'tools/project-land.sh'), branch, '--evidence', str(checks / 'evidence.json'),
                            '--title', title, '--body-file', str(body), '--execute'],
                           cwd=root, capture_output=True, text=True)

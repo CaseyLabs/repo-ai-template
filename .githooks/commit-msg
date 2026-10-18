@@ -3,7 +3,9 @@
 # AI co-authors, or AI/session trailers). Enable per clone with:
 #   git config core.hooksPath .githooks
 
-hits=$(grep -v '^#' "$1" | grep -inE \
+# Ignore the `git commit -v` diff below the scissors line and blank comment lines,
+# keeping line numbers aligned with the message file.
+hits=$(sed -e '/^# -* >8 -*$/,$d' -e 's/^#.*//' "$1" | grep -inE \
 	-e '^co-authored-by:.*(claude|anthropic|codex|openai|chatgpt|copilot|gpt-)' \
 	-e '^(claude|codex|ai|agent)-session:' \
 	-e 'generated (with|by) (.*[^a-z])?(claude|codex|chatgpt|copilot|ai)([^a-z]|$)' \

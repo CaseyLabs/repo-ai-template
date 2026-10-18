@@ -32,15 +32,16 @@ def slugify(heading: str) -> str:
     heading = re.sub(r"`([^`]*)`", r"\1", heading)
     heading = re.sub(r"\[([^]]+)\]\([^)]*\)", r"\1", heading)
     heading = heading.lower()
-    heading = re.sub(r"[^\w\-\s]", "", heading, flags=re.UNICODE)
-    return re.sub(r"\s+", "-", heading).strip("-")
+    heading = re.sub(r"[^\w\- ]", "", heading.strip(), flags=re.UNICODE)
+    # GitHub turns each space into a hyphen without collapsing runs: "A / B" -> "a--b".
+    return heading.replace(" ", "-")
 
 
-def anchors(text: str) -> set[str]:
-    # Mask fenced blocks only: inline code is valid heading text and contributes its contents.
+def mask_fences(lines: list[str]) -> list[str]:
+    """Blank fenced code block lines, keeping line indexes, so `# comment` lines are not headings."""
     cleaned_lines = []
     in_fence = None
-    for line in text.splitlines():
+    for line in lines:
         marker = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
         if in_fence:
             cleaned_lines.append("")
@@ -49,31 +50,53 @@ def anchors(text: str) -> set[str]:
             in_fence = marker.group(1); cleaned_lines.append("")
         else:
             cleaned_lines.append(line)
-    found: set[str] = set()
+    return cleaned_lines
+
+
+def headings(lines: list[str]):
+    """Yield (index, depth, slug) for ATX and setext headings, numbering duplicate slugs like GitHub."""
+    # Mask fenced blocks only: inline code is valid heading text and contributes its contents.
+    lines = mask_fences(lines)
     used: set[str] = set()
     counts: dict[str, int] = {}
     i = 0
-    while i < len(cleaned_lines):
-        line = cleaned_lines[i]
-        explicit = re.findall(r'<a\s+(?:[^>]*\s)?id=["\']([^"\']+)', line, re.I)
-        found.update(explicit)
+    while i < len(lines):
+        line, index = lines[i], i
         h = re.match(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$", line)
-        if not h:
-            if i + 1 < len(cleaned_lines):
-                setext = re.match(r"^\s{0,3}(=+|-+)\s*$", cleaned_lines[i + 1])
-                if setext and line.strip():
-                    h = (line.strip(),)
-                    i += 1
+        setext = re.match(r"^\s{0,3}(=+|-+)\s*$", lines[i + 1]) if i + 1 < len(lines) else None
         if h:
-            title = h.group(2) if isinstance(h, re.Match) else h[0]
-            base = slugify(title)
-            n = counts.get(base, 0)
-            candidate = base if n == 0 else f"{base}-{n}"
-            while candidate in used:
-                n += 1; candidate = f"{base}-{n}"
-            counts[base] = n + 1
-            used.add(candidate); found.add(candidate)
+            depth, title = len(h.group(1)), h.group(2)
+        elif setext and line.strip():
+            depth, title = (1 if setext.group(1)[0] == "=" else 2), line.strip()
+            i += 1
+        else:
+            i += 1
+            continue
+        base = slugify(title)
+        n = counts.get(base, 0)
+        candidate = base if n == 0 else f"{base}-{n}"
+        while candidate in used:
+            n += 1; candidate = f"{base}-{n}"
+        counts[base] = n + 1
+        used.add(candidate)
+        yield index, depth, candidate
         i += 1
+
+
+def explicit_ids(line: str) -> list[str]:
+    return re.findall(r'<a\s+(?:[^>]*\s)?id=["\']([^"\']+)', line, re.I)
+
+
+def mask_code_lines(lines: list[str]) -> list[str]:
+    """Blank fenced and inline code, keeping line indexes, so a quoted `<a id>` example is no anchor."""
+    return mask_code("\n".join(lines)).split("\n")
+
+
+def anchors(text: str) -> set[str]:
+    lines = text.splitlines()
+    found = {slug for _, _, slug in headings(lines)}
+    for line in mask_code_lines(lines):
+        found.update(explicit_ids(line))
     return found
 
 

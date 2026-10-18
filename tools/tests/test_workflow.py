@@ -58,7 +58,7 @@ class Workflow(unittest.TestCase):
         self.git('config', 'core.hooksPath', str(self.root / '.git/hooks'))
         (self.root / 'README.md').write_text('# Fixture\nBase\n')
         (self.root / 'tools').mkdir()
-        for filename in ('check-doc-links.py', 'project_markdown.py'):
+        for filename in ('check-doc-links.py', 'project_markdown.py', 'project-check.py', 'project_common.py', 'project_config.py'):
             shutil.copy2(TOOLS / filename, self.root / 'tools' / filename)
         (self.root / 'tools/project.toml').write_text(FIXTURE_CONFIG)
         self.git('add', '.')
@@ -125,6 +125,40 @@ class Workflow(unittest.TestCase):
         self.assertEqual(plan['commands'][1]['argv'][-1], plan['base'])
         self.assertEqual(plan['commands'][3]['cwd'], 'src')
         self.assertFalse(plan['execute'])
+
+    def test_whitespace_check_covers_untracked_files(self):
+        (self.root / 'untracked.md').write_text('trailing \n')
+        r = self.cli('project-check.py', '--whitespace-only', 'main')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('trailing whitespace', r.stdout + r.stderr)
+        (self.root / 'untracked.md').write_text('clean\n')
+        subprocess.run(['git', 'init', '-q', str(self.root / 'nested')], check=True)
+        subprocess.run(['git', '-C', str(self.root / 'nested'), 'commit', '-q', '--allow-empty', '-m', 'n'], check=True,
+                       env={**os.environ, 'GIT_AUTHOR_NAME': 'F', 'GIT_AUTHOR_EMAIL': 'f@example.invalid',
+                            'GIT_COMMITTER_NAME': 'F', 'GIT_COMMITTER_EMAIL': 'f@example.invalid'})
+        r = self.cli('project-check.py', '--whitespace-only', 'main')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn('error', r.stdout + r.stderr)
+
+    def test_fingerprint_binds_nested_repository_contents(self):
+        nested = self.root / 'nested'
+        env = {**os.environ, 'GIT_AUTHOR_NAME': 'F', 'GIT_AUTHOR_EMAIL': 'f@example.invalid',
+               'GIT_COMMITTER_NAME': 'F', 'GIT_COMMITTER_EMAIL': 'f@example.invalid'}
+        def nested_git(*args):
+            subprocess.run(['git', '-C', str(nested), *args], check=True, capture_output=True, env=env)
+        subprocess.run(['git', 'init', '-q', str(nested)], check=True)
+        (nested / 'a.txt').write_text('one\n')
+        nested_git('add', '.'); nested_git('commit', '-qm', 'n')
+        self.git('add', 'nested')  # Recorded as a gitlink, like a checked-out submodule.
+        seen = [tree_fingerprint(self.root)]
+        self.assertEqual(tree_fingerprint(self.root), seen[0])
+        (nested / 'a.txt').write_text('two\n')  # Uncommitted edit inside the submodule.
+        seen.append(tree_fingerprint(self.root))
+        (nested / 'new.txt').write_text('new\n')
+        seen.append(tree_fingerprint(self.root))
+        nested_git('add', '.'); nested_git('commit', '-qm', 'n2')
+        seen.append(tree_fingerprint(self.root))
+        self.assertEqual(len(set(seen)), 4, seen)
 
     def test_scopes_are_union_not_permission_to_skip_checks(self):
         config = self.config()

@@ -42,6 +42,7 @@ python3 tools/check-doc-links.py --changed        # Changed Markdown (--all for 
 python3 tools/project-check.py --base main        # Check plan only
 python3 tools/project-check.py --base main --run  # Serial checks with private logs and evidence
 python3 tools/ai-check.py                         # AI setup self-check
+tools/check-commit-messages.sh main..HEAD          # Rerun the commit hook on branch commits (CI does this)
 ```
 
 `project-context.py` accepts `--plan`/`--issues`, `--json` and `--max-lines`. User-supplied paths resolve from the invocation directory. A missing or ambiguous milestone or plan is an error. Context reports proposed or deferred status without authorizing it.

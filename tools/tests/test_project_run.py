@@ -149,6 +149,16 @@ class Selection(unittest.TestCase):
                 m['status'] = 'done'
         self.assertEqual(self.ids({'GAMMA-1'}), [])
 
+    def test_fenced_comment_does_not_end_project_or_milestone(self):
+        plan = ('## AB — Deferred project\n**Status / proposed priority:** deferred\n\n'
+                '### AB-1 — One\n```bash\n# setup\n## not a heading\n```\n'
+                '**Status / proposed priority:** proposed / P1\n\n'
+                '### AB-2 — Two\n**Status / proposed priority:** proposed / P1\n')
+        milestones = RUN.parse_plan(plan)
+        self.assertEqual([(m['id'], m['status'], m['project']['id']) for m in milestones],
+                         [('AB-1', 'proposed', 'AB'), ('AB-2', 'proposed', 'AB')])
+        self.assertEqual(RUN.candidates(milestones), [])
+
 
 class Parsing(unittest.TestCase):
     def test_reset_formats(self):
@@ -193,6 +203,7 @@ sys.exit(1 if os.environ.get('FAKE_CHECK_FAIL') else 0)
 FAKE_LAND = r'''#!/bin/sh
 set -eu
 echo "$1 $5" >> "$FAKE_STATE/landed"
+cp "$7" "$FAKE_STATE/body"
 git switch -q main
 git merge -q --squash "$1"
 git commit -qm "$5"
@@ -310,6 +321,12 @@ class Runner(unittest.TestCase):
         self.assertEqual(self.git('branch', '--list', 'milestone/*'), '')
         self.assertEqual(self.git('log', '-2', '--format=%s').splitlines(),
                          ['feat: ALPHA-2 success', 'feat: ALPHA-4 success'])
+
+    def test_land_body_keeps_every_branch_commit(self):
+        self.land_fixture()
+        proc = self.run_tool('--land', '--milestones', 'ALPHA-4', plan={'ALPHA-4': ['handoff', 'success']})
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual((self.state / 'body').read_text(), 'feat: ALPHA-4 handoff\n\nfeat: ALPHA-4 success\n')
 
     def test_land_stops_without_landing_on_failed_checks_or_blocked(self):
         self.land_fixture()
