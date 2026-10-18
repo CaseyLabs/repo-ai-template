@@ -1,0 +1,32 @@
+# Project configuration for the workflow helpers (tools/project-*.py).
+# Scopes map changed paths to the checks that must pass; a changed path that
+# matches no scope stops automated checks and landing until it is classified.
+# Commands are argv lists (no shell) run from the repository root, or tables
+# {name, argv, cwd}. "{base}" in an argument is replaced by the check base.
+
+[project]
+name = "repo-ai-template"
+main_branch = "main"
+cache_name = "repo-ai-template"
+
+[[scopes]]
+name = "docs"
+paths = ["*.md", "**/*.md", "docs/**", "LICENSE"]
+commands = [["python3", "tools/check-doc-links.py", "--changed", "--base", "{base}"]]
+
+[[scopes]]
+name = "tooling"
+paths = ["tools/**", ".agents/**", ".claude/**", ".codex/**", ".githooks/**", ".github/**",
+         ".gitignore", ".gitattributes", "CLAUDE.md", "AGENTS.md"]
+commands = [
+  { name = "tooling-tests", argv = ["python3", "-m", "unittest", "discover", "-s", "tools/tests", "-p", "test_*.py"] },
+  { name = "skill-paths", argv = ["python3", ".agents/skills/project-next-milestone/tests/paths.py"] },
+  { name = "ai-check", argv = ["python3", "tools/ai-check.py", "--template"] },
+]
+
+[runner]
+default_agent = "claude"
+scrub_env_files = [".env", ".env.local"]
+playwright = false
+chrome = false
+verify_command = ""

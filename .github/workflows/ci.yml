@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ai-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: AI setup self-check
+        # Template mode allows unfilled placeholders; init-project.py removes the flag.
+        run: python3 tools/ai-check.py --template
+      - name: Workflow helper tests
+        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
+      - name: Skill path checks
+        run: python3 .agents/skills/project-next-milestone/tests/paths.py
+      - name: Markdown links
+        run: python3 tools/check-doc-links.py --all
