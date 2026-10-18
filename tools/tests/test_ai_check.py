@@ -84,6 +84,10 @@ class AiCheck(unittest.TestCase):
             stream.write('- filler rule\n' * 60)
         self.assert_fails('AGENTS.md is')
 
+    def test_missing_deny_rule(self):
+        self.edit('.claude/settings.json', '      "Bash(git push * --force*)",\n', '')
+        self.assert_fails('missing deny rule Bash(git push * --force*)')
+
     def test_broken_link_in_skill(self):
         with (self.root / '.agents/skills/project-ship/SKILL.md').open('a') as stream:
             stream.write('\nSee [missing](../../../docs/MISSING.md).\n')

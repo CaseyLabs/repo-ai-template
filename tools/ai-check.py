@@ -24,6 +24,11 @@ SKILL_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 PLACEHOLDER = re.compile(r'\{\{[A-Z][A-Z0-9_]*\}\}')
 INSTRUCTIONS = re.compile(r'\.agents/skills/[\w./-]+\.md')
 NO_VALUE = '-'
+# Hard rules from AGENTS.md; each flag is denied in any argument position.
+REQUIRED_DENY = {
+    'Bash(git push --force*)', 'Bash(git push * --force*)', 'Bash(git push -f*)', 'Bash(git push * -f*)',
+    'Bash(git commit --no-verify*)', 'Bash(git commit * --no-verify*)',
+}
 
 
 class Report:
@@ -182,9 +187,13 @@ def check_guidance(root, report):
     settings = root / '.claude/settings.json'
     if settings.is_file():
         try:
-            json.loads(settings.read_text(encoding='utf-8'))
+            data = json.loads(settings.read_text(encoding='utf-8'))
         except ValueError as error:
             report.error(f'.claude/settings.json is not valid JSON: {error}')
+            return
+        missing = REQUIRED_DENY - set(data.get('permissions', {}).get('deny', []))
+        for rule in sorted(missing):
+            report.error(f'.claude/settings.json is missing deny rule {rule}')
 
 
 def check_links(root, report):

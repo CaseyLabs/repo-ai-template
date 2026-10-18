@@ -66,7 +66,7 @@ Create an ExecPlan only for sufficiently complex work. It contains:
 - Goal, scope and exclusions, project/milestone/issue links and authorization.
 - The repository context, symbols and approach a fresh agent cannot infer.
 - Dependencies, risks and concrete steps as checkboxes under `## Progress`.
-- Acceptance criteria mapped to exact commands, fixtures, expected outcomes and external gates.
+- Acceptance criteria mapped to exact commands, fixtures, expected outcomes and external gates, ending with an end-to-end check that exercises the deliverable the way a user would.
 - Living sections: `## Surprises & Discoveries`, `## Decision Log`, `## Outcomes & Retrospective`.
 - A checkpoint: branch and base revision, current step, next concrete action, changed files, remaining work, exact command results, unrun checks and blockers.
 

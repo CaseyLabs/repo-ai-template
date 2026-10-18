@@ -19,7 +19,7 @@ Principles:
 3. **Portable skills.** Shared `SKILL.md` frontmatter uses only the [Agent Skills](https://agentskills.io/specification) keys (`name`, `description`, `license`, `compatibility`, `metadata`). Host-only keys (`model`, `allowed-tools`, `context`) belong in host adapters; skills must never grant tools or permissions. Skill bodies use plain Markdown and shell commands, with no host preprocessing.
 4. **Thin agent files.** Both hosts' agent files point to the same instructions file and add only host settings. Every Claude agent has a Codex counterpart with the same name (Codex may add extra roles such as `file_reader`).
 5. **Namespaced names.** Project skills and agents start with `project-` so they don't collide with personal or plugin skills such as `worker` or `ship`.
-6. **Enforce outside the model.** Rules that must hold (no AI attribution, no force-push) are enforced by Git hooks, CI and host deny rules, not just written down.
+6. **Enforce outside the model.** Rules that must hold (no AI attribution, no force-push) are enforced by Git hooks, CI and host deny rules, not just written down. Claude deny rules match the flag in any argument position, and `ai-check` fails if one is missing.
 7. **State in Git, not chat.** Roadmap, issues, checkpoints and handoff prompts are files, so either host can continue the other's work ([lifecycle](PROJECT_MANAGEMENT.md)).
 8. **Disclose fallbacks.** When a named agent or capability is unavailable, a workflow says so and never claims the configured model or effort was applied.
 
@@ -47,6 +47,7 @@ A project that wants a specific model for one skill sets it in a host adapter, n
 
 Reviewed 2026-10-18 (Claude Code 2.1.301, Codex CLI 0.163.0):
 
+- Best practices: [Claude Code](https://code.claude.com/docs/en/best-practices) and [Codex](https://learn.chatgpt.com/guides/best-practices). The setup follows both: short always-loaded guidance with on-demand skills, verification by runnable checks with evidence, an independent fresh-context acceptance review that reports only correctness and requirement gaps, plan-then-implement milestones with self-contained ExecPlans, and one unit of work per session with file-based handoff. Side-effecting skills (`project-ship`) stay model-invocable because landing is part of authorized milestone work; their guardrails are deny rules and Git hooks.
 - Claude Code: [memory and `@` imports](https://code.claude.com/docs/en/memory) (imports load at launch, up to four hops; Claude Code reads `AGENTS.md` natively only when no `CLAUDE.md` exists, so the import stays), [skills](https://code.claude.com/docs/en/skills) (symlinked skill directories are supported), [subagents](https://code.claude.com/docs/en/sub-agents), [permissions](https://code.claude.com/docs/en/permissions), [headless mode](https://code.claude.com/docs/en/headless).
 - Codex: [AGENTS.md discovery](https://learn.chatgpt.com/docs/agent-configuration/agents-md), [skills](https://learn.chatgpt.com/docs/build-skills), [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) (project trust, agents, `project_doc_max_bytes`).
 - [Agent Skills specification](https://agentskills.io/specification) and the [AGENTS.md format](https://agents.md).
