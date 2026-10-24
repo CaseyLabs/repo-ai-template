@@ -4,55 +4,28 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
 
-from project_markdown import anchors, links, resolve_target
-
-
-def git(root: Path, *args: str):
-    raw = subprocess.check_output(["git", *args], cwd=root, stderr=subprocess.DEVNULL)
-    return [os.fsdecode(part) for part in raw.split(b"\0") if part]
-
-
-def changed_paths(root: Path, base: str | None):
-    args = ["diff", "--name-only", "-z", "--diff-filter=ACMRTUXB"]
-    args += [base, "--"] if base else ["HEAD", "--"]
-    paths=set(git(root,*args))
-    if not base:
-        paths.update(git(root,"diff","--cached","--name-only","-z","--diff-filter=ACMRTUXB"))
-    paths.update(git(root,"ls-files","--others","--exclude-standard","-z"))
-    return {p for p in paths if p.lower().endswith((".md",".mdx"))}
+from project_common import WorkflowError, repository
+from project_markdown import add_selection_args, anchors, is_markdown, links, resolve_target, select_markdown
 
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("paths",nargs="*")
-    ap.add_argument("--changed",action="store_true")
-    ap.add_argument("--all",action="store_true",help="check every tracked and untracked (not ignored) Markdown file")
-    ap.add_argument("--base")
+    add_selection_args(ap)
     ap.add_argument("--json",action="store_true")
     ap.add_argument("--json-output", help="write the complete JSON report to this path")
     ap.add_argument("--max-errors",type=int,default=50)
     args=ap.parse_args()
     try:
-        root=Path(subprocess.check_output(["git","rev-parse","--show-toplevel"],text=True,stderr=subprocess.DEVNULL).strip())
+        root=repository()
         if args.max_errors < 0: raise ValueError("--max-errors must be nonnegative")
-        explicit=set()
-        for value in args.paths:
-            path=(Path.cwd()/value).resolve()
-            explicit.add(str(path.relative_to(root)) if path.is_relative_to(root) else str(path))
-        names=set(explicit)
-        if args.all:
-            names.update(p for p in git(root,"ls-files","--cached","--others","--exclude-standard","-z") if p.lower().endswith((".md",".mdx")))
-        elif args.changed or not args.paths: names.update(changed_paths(root,args.base))
+        explicit,names=select_markdown(root,args.paths,args.all,args.changed,args.base)
         errors=[]
-        # A base selects committed changes against that ref; otherwise staged and unstaged plus untracked.
         for name in sorted(names):
             source=(root/name).resolve()
-            if source.suffix.lower() not in (".md",".mdx"): continue
+            if not is_markdown(source.name): continue
             if not source.exists():
                 if name in explicit: errors.append({"file":name,"line":1,"message":"explicit Markdown source does not exist"})
                 continue
@@ -64,7 +37,7 @@ def main():
                 if target is None: continue
                 if not target.exists():
                     errors.append({"file":name,"line":line,"message":f"missing link target: {dest}"}); continue
-                if anchor and target.suffix.lower() in (".md",".mdx"):
+                if anchor and is_markdown(target.name):
                     try: target_anchors=anchors(target.read_text(encoding="utf-8"))
                     except (OSError,UnicodeError): target_anchors=set()
                     if anchor not in target_anchors:
@@ -80,7 +53,7 @@ def main():
             if len(shown)<len(errors): print(f"... {len(errors)-len(shown)} additional errors; see --json-output report.")
             print(f"Checked {len(names)} Markdown path(s); {len(errors)} error(s).")
         return 1 if errors else 0
-    except (subprocess.CalledProcessError,OSError,ValueError) as e:
+    except (WorkflowError,OSError,ValueError) as e:
         print(f"check-doc-links: {e}",file=sys.stderr); return 2
 
 

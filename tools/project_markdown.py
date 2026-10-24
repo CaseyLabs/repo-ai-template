@@ -5,9 +5,20 @@ import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+from project_common import changed_paths, git, resolve_path
 
-def mask_code(text: str) -> str:
-    """Replace fenced and inline code with spaces while preserving newlines."""
+# A code span opens and closes with backtick runs of the same length.
+INLINE_CODE = re.compile(r"(?<!`)(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
+FRONTMATTER = re.compile(r"\A---[ \t]*\r?\n.*?^---[ \t]*$", re.S | re.M)
+
+
+def mask_frontmatter(text: str) -> str:
+    """Blank YAML frontmatter while preserving newlines."""
+    return FRONTMATTER.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+
+
+def mask_code(text: str, inline: str | None = None) -> str:
+    """Replace fenced code with spaces and inline code with spaces (or `inline`), preserving newlines."""
     lines = text.splitlines(keepends=True)
     in_fence = None
     out = []
@@ -24,7 +35,7 @@ def mask_code(text: str) -> str:
         else:
             out.append(line)
     text = "".join(out)
-    return re.sub(r"(`+)([^`\n]*?)\1", lambda m: " " * len(m.group(0)), text)
+    return INLINE_CODE.sub(lambda m: " " * len(m.group(0)) if inline is None else inline, text)
 
 
 def slugify(heading: str) -> str:
@@ -55,8 +66,9 @@ def mask_fences(lines: list[str]) -> list[str]:
 
 def headings(lines: list[str]):
     """Yield (index, depth, slug) for ATX and setext headings, numbering duplicate slugs like GitHub."""
-    # Mask fenced blocks only: inline code is valid heading text and contributes its contents.
-    lines = mask_fences(lines)
+    # Mask frontmatter, whose closing --- would make the last field a setext heading, and fenced
+    # blocks only: inline code is valid heading text and contributes its contents.
+    lines = mask_fences(mask_frontmatter("\n".join(lines)).split("\n"))
     used: set[str] = set()
     counts: dict[str, int] = {}
     i = 0
@@ -147,3 +159,33 @@ def resolve_target(source: Path, target: str, repo: Path):
         candidate = source
     candidate = candidate.resolve()
     return candidate, anchor
+
+
+def is_markdown(path: str) -> bool:
+    return path.lower().endswith((".md", ".mdx"))
+
+
+def changed_markdown(root: Path, base: str | None):
+    """Markdown changed since base (committed or not), or since HEAD without one, plus untracked files."""
+    return {p for p in changed_paths(root, base or "HEAD") if is_markdown(p)}
+
+
+def add_selection_args(ap):
+    ap.add_argument("paths",nargs="*")
+    ap.add_argument("--changed",action="store_true")
+    ap.add_argument("--all",action="store_true",help="check every tracked and untracked (not ignored) Markdown file")
+    ap.add_argument("--base")
+
+
+def select_markdown(root: Path, paths: list[str], everything: bool, changed: bool, base: str | None):
+    """Return (explicit, names): explicit paths relative to root when inside it, plus --all or --changed Markdown."""
+    explicit=set()
+    for value in paths:
+        path=resolve_path(value)
+        explicit.add(str(path.relative_to(root)) if path.is_relative_to(root) else str(path))
+    names=set(explicit)
+    if everything:
+        listed=git(root,"ls-files","--cached","--others","--exclude-standard","-z").stdout.split("\0")
+        names.update(p for p in listed if p and is_markdown(p))
+    elif changed or not paths: names.update(changed_markdown(root,base))
+    return explicit, names

@@ -43,6 +43,7 @@
 
 - When a change affects user-visible behavior, commands, configuration or developer workflows, update the relevant documentation in the same task.
 - Correct existing guidance instead of adding duplicate instructions.
+- Write docs, skills and guidance in the [plain style](CONTRIBUTING.md#writing-style).
 
 ## Milestones
 

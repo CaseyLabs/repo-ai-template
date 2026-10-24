@@ -41,17 +41,36 @@ Issue entries use `### CO1 — Short title` under the owning project's `## CORE`
 
 ## Status, priority and eligibility
 
-Projects and milestones use `proposed`, `active`, `blocked`, `deferred`, `done`. Issues use `open`, `active`, `blocked`, `deferred`, `resolved`. Evidence certainty is a separate attribute, not a status. `blocked` names a specific unsatisfied gate; `deferred` records a decision to wait. `proposed`/`open` permit consideration, not execution. `active` requires an explicit request or recorded prior authorization. `done`/`resolved` require proved acceptance or closure criteria, with any limits retained.
+Projects and milestones use `proposed`, `active`, `blocked`, `deferred`, `done`. Issues use `open`, `active`, `blocked`, `deferred`, `resolved`. Evidence certainty is a separate attribute, not a status.
 
-Priorities: P1 security, privacy, data integrity or consequential correctness; P2 functional follow-ups; P3 maintenance or optional investigation. Newly assigned priorities are recommendations, not owner decisions. Keep severity independent of priority. Dependencies override priority: order prerequisites first, then higher priorities among independent work, and do not invent dependencies from thematic grouping. List external gates separately from milestone prerequisites.
+- `proposed`/`open` permit consideration, not execution.
+- `active` requires an explicit request or recorded prior authorization.
+- `blocked` names a specific unsatisfied gate.
+- `deferred` records a decision to wait.
+- `done`/`resolved` require proved acceptance or closure criteria. Keep any limits in the entry.
 
-A candidate is eligible for selection when its known prerequisites permit its scope. It becomes executable only when the user's request authorizes that scope. Starting the [unattended runner](../CONTRIBUTING.md#unattended-milestone-runs) authorizes the local scope of each milestone it selects, one at a time; it never reopens deferred work or waives an external gate. Deferred work requires explicit reopening. Outside such a run, if candidates differ materially in scope, present them and obtain a selection instead of implementing the first unfinished entry.
+Priorities:
+
+- P1: security, privacy, data integrity or consequential correctness.
+- P2: functional follow-ups.
+- P3: maintenance or optional investigation.
+
+A newly assigned priority is a recommendation, not an owner decision. Keep severity independent of priority. Dependencies override priority: order prerequisites first, then order independent work by priority. Do not invent dependencies from thematic grouping. List external gates separately from milestone prerequisites.
+
+A candidate is eligible for selection when its known prerequisites permit its scope. It becomes executable only when the user's request authorizes that scope. Deferred work requires explicit reopening.
+
+The [unattended runner](../CONTRIBUTING.md#unattended-milestone-runs) authorizes the local scope of each milestone it selects, one at a time. It never reopens deferred work or waives an external gate. Outside such a run, if candidates differ materially in scope, present them and get a selection. Do not implement the first unfinished entry by default.
 
 ## Lifecycle
 
 ### Add an issue
 
-Search the relevant register section for duplicates. Assign a stable unused ID, attach it to an existing project (or justify a small new one), and link a relevant milestone in both directions. Record the problem, affected symbols, impact, original severity (or unspecified), recommended priority, status, evidence and date, verification limits, reproduction if known, dependencies and closure criteria. Record confirmed findings left unfixed in the same task. Unverified reports stay labeled as such. Adding an entry does not authorize a fix.
+1. Search the relevant register section for duplicates.
+2. Assign a stable unused ID. Attach the issue to an existing project, or justify a small new one.
+3. Link a relevant milestone in both directions.
+4. Record the problem, affected symbols, impact, original severity (or unspecified), recommended priority, status, evidence and date. Also record verification limits, reproduction if known, dependencies and closure criteria.
+
+Record confirmed findings left unfixed in the same task. Keep unverified reports labeled as unverified. Adding an entry does not authorize a fix.
 
 ### Recurring problems
 
@@ -78,13 +97,21 @@ Update the active checkpoint at meaningful completions, discoveries, blockers, s
 
 ### Session boundaries
 
-Run one milestone per session, and start the next one in a fresh session from the committed roadmap and checkpoint. When the host reports context nearing its compaction point (Claude Code `/context`, Codex `/status`), finish the current sub-step, checkpoint everything the remaining work needs, and use project-handoff. A session that has already been compacted once hands off at the next sub-step boundary instead of continuing into a second compaction. Automatic compaction stays enabled as a fallback; the checkpoint, not the summary, is the continuation state.
+Run one milestone per session. Start the next one in a fresh session from the committed roadmap and checkpoint.
+
+When the host reports context near its compaction point (Claude Code `/context`, Codex `/status`):
+
+1. Finish the current sub-step.
+2. Checkpoint everything the remaining work needs.
+3. Use project-handoff.
+
+A session that has already been compacted once hands off at the next sub-step boundary. It does not continue into a second compaction. Automatic compaction stays enabled as a fallback, but the checkpoint, not the summary, is the continuation state.
 
 ### Complete and stop
 
 Use project-finish-milestone for checks, independent acceptance review, correctness fixes and behavior-preserving simplification. Mark done only when acceptance is proved; outstanding required checks keep the work active or blocked. Resolve only issues that were actually fixed and verified.
 
-Move lasting behavior and decisions to technical docs and evidence to validation records. Collapse completed roadmap detail to a short ID, status and evidence link while it is still referenced, and remove resolved register entries once nothing links to them (keep or update anchors first). Commits, pushes and landing follow repository policy, and a no-commit request always wins. Completing one milestone never authorizes the next.
+Move lasting behavior and decisions to technical docs, and evidence to validation records. Collapse completed roadmap detail to a short ID, status and evidence link while something still links to it. Remove a resolved register entry when nothing links to it; keep or update its anchor first. Commits, pushes and landing follow repository policy, and a no-commit request always wins. Completing one milestone never authorizes the next.
 
 After completing a milestone, record the next recommended milestone in roadmap Progress as one line, `**Next recommended:** [ID](#id) — reason`, replacing any earlier one. If nothing is eligible, name the best issue to turn into a milestone or what would unblock work. A recommendation is not authorization.
 

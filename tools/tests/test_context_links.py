@@ -1,4 +1,4 @@
-"""Disposable CLI tests for the project context and Markdown link helpers."""
+"""Disposable CLI tests for the project context, Markdown link and prose helpers."""
 from __future__ import annotations
 
 import json
@@ -11,6 +11,7 @@ from pathlib import Path
 TOOLS=Path(__file__).resolve().parents[1]
 CONTEXT=TOOLS/"project-context.py"
 CHECK=TOOLS/"check-doc-links.py"
+PROSE=TOOLS/"check-prose.py"
 
 
 class Checkout(unittest.TestCase):
@@ -36,6 +37,11 @@ class Checkout(unittest.TestCase):
 
     def cli(self, script, *args, cwd=None):
         return subprocess.run([sys.executable,str(script),*args],cwd=cwd or self.root,capture_output=True,text=True)
+
+    def prose_findings(self, name):
+        r=self.cli(PROSE,name,"--json")
+        self.assertEqual(r.returncode,0,r.stderr)
+        return [(f["line"],f["words"]) for f in json.loads(r.stdout)["findings"]]
 
     def test_context_scope_linked_files_and_path_spaces(self):
         r=self.cli(CONTEXT,"MAINT-5","--json")
@@ -129,6 +135,41 @@ class Checkout(unittest.TestCase):
         self.assertEqual(r.returncode,0,r.stderr)
         self.assertIn("MAINT-5",r.stdout)
         self.assertNotIn("MAINT-50",r.stdout)
+
+    def test_prose_reports_long_sentences_only_when_strict_fails(self):
+        long=" ".join(["word"]*30)
+        (self.root/"guide.md").write_text(
+            "---\ndescription: "+long+"\n---\n# "+long+"\n\n"
+            "Short one. `code` starts this "+" ".join(["sentence"]*24)+".\n\n"
+            "- Item one is short.\n- Item "+long+".\n\n"
+            "```\n"+long+"\n```\n| "+long+" |\n",encoding="utf-8")
+        self.assertEqual(self.prose_findings("guide.md"),[(6,27),(9,31)])
+        self.assertEqual(self.cli(PROSE,"guide.md","--strict").returncode,1)
+        self.assertEqual(self.cli(PROSE,"guide.md","--strict","--max-words","40").returncode,0)
+        self.assertEqual(self.cli(PROSE,"README.md","--strict").returncode,0)
+
+    def test_prose_joins_wrapped_blockquotes_and_rejects_missing_paths(self):
+        (self.root/"quote.md").write_text("---\r\ntitle: "+" ".join(["word"]*30)+"\r\n---\r\n"
+            "> "+" ".join(["word"]*15)+"\n> "+" ".join(["word"]*15)+".\n",encoding="utf-8")
+        self.assertEqual(self.prose_findings("quote.md"),[(4,30)])
+        r=self.cli(PROSE,"missing.md")
+        self.assertEqual(r.returncode,2)
+        self.assertIn("does not exist",r.stderr)
+
+    def test_prose_keeps_wrapped_autolinks_and_drops_setext_headings(self):
+        half=" ".join(["word"]*14)
+        (self.root/"wrap.md").write_text(
+            half+"\n<https://example.com> and\n#123 "+half+".\n\n"
+            "Setext "+" ".join(["title"]*30)+"\n---\n\n"
+            "Run it. 3 "+" ".join(["retries"]*20)+" follow. `` `a` `` "+" ".join(["x"]*26)+".\n",encoding="utf-8")
+        self.assertEqual(self.prose_findings("wrap.md"),[(1,30),(8,27)])
+
+    def test_markdown_frontmatter_is_not_a_setext_heading(self):
+        (self.root/"skill.md").write_text("---\nname: x\ndescription: Do things\n---\n\n# Real\n",encoding="utf-8")
+        (self.root/"links.md").write_text("[ok](skill.md#real)\n[fake](skill.md#description-do-things)\n",encoding="utf-8")
+        r=self.cli(CHECK,"links.md","--json")
+        self.assertEqual(r.returncode,1,r.stderr)
+        self.assertEqual([e["line"] for e in json.loads(r.stdout)["errors"]],[2])
 
     def test_markdown_links_paths_anchors_duplicates_and_root_paths(self):
         docs=self.root/"docs"; docs.mkdir(exist_ok=True)

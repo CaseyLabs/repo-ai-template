@@ -12,7 +12,8 @@ cache_name = "repo-ai-template"
 [[scopes]]
 name = "docs"
 paths = ["*.md", "**/*.md", "docs/**", "LICENSE"]
-commands = [["python3", "tools/check-doc-links.py", "--changed", "--base", "{base}"]]
+commands = [["python3", "tools/check-doc-links.py", "--changed", "--base", "{base}"],
+            ["python3", "tools/check-prose.py", "--changed", "--base", "{base}"]]
 
 [[scopes]]
 name = "tooling"
