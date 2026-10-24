@@ -16,7 +16,7 @@ Edit skills and their resources in `.agents/skills/`. The relative symlink `.cla
 
 Native model and effort settings live in `.claude/agents/` and `.codex/agents/`; both read the same instructions files in `.agents/skills/project-finish-milestone/references/`. Keep the [model routing table](docs/AI_SETUP.md#model-routing) in step with them. Start a fresh session to load changed agent definitions.
 
-Maintain the guidance like code. Add a rule only after an agent got something wrong without it, and phrase it as a check the agent can act on. Delete rules agents already follow unprompted. A rule that must never be broken belongs in a hook, deny rule or CI check, not in more emphatic wording. When an agent repeats a mistake despite a rule, the rule is probably unclear or lost in a long file: rewrite or shorten it. Claude Code's `/doctor` proposes cuts for content derivable from the code.
+Maintain the guidance like code. Add a rule only after an agent got something wrong without it, and phrase it as a check the agent can act on. Delete rules agents already follow unprompted. A rule that must never be broken belongs in a hook, deny rule or CI check, not in more emphatic wording. When an agent repeats a mistake despite a rule, the rule is probably unclear or lost in a long file: rewrite or shorten it. Claude Code's `/doctor` proposes cuts for content derivable from the code, and `/skill-doctor` shows each skill's cost and usage and flags dead weight.
 
 Validate AI-setup changes with `python3 tools/ai-check.py`. It also runs in CI and in the `tooling` check scope.
 
