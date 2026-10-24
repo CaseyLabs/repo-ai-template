@@ -19,6 +19,7 @@ from project_markdown import links, resolve_target  # noqa: E402
 AGENTS_MAX_LINES = 100
 AGENTS_MAX_BYTES = 12 * 1024
 # https://agentskills.io/specification: portable SKILL.md frontmatter keys.
+# The spec's experimental allowed-tools is excluded: skills must never grant tools.
 SKILL_KEYS = {'name', 'description', 'license', 'compatibility', 'metadata'}
 SKILL_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 PLACEHOLDER = re.compile(r'\{\{[A-Z][A-Z0-9_]*\}\}')

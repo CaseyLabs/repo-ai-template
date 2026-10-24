@@ -4,4 +4,4 @@ Authoritative register of unresolved issues, keyed by stable IDs shared with the
 
 ## Recurring problems
 
-None. Track environment and tool symptoms here with their workaround and an occurrence count; on a second occurrence or a costly first one, move the workaround into the applicable guidance and remove the tally.
+None. Track environment and tool symptoms here with their workaround and an occurrence count. On a second occurrence or a costly first one, move the workaround into the applicable guidance and remove the tally.
